@@ -1,0 +1,16 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\BankMore.Fee.Domain\BankMore.Fee.Domain.csproj" />
+    <ProjectReference Include="..\..\..\BuildingBlocks\BankMore.BuildingBlocks.Application\BankMore.BuildingBlocks.Application.csproj" />
+    <ProjectReference Include="..\..\..\BuildingBlocks\BankMore.BuildingBlocks.Domain\BankMore.BuildingBlocks.Domain.csproj" />
+    <ProjectReference Include="..\..\..\BuildingBlocks\BankMore.BuildingBlocks.Contracts\BankMore.BuildingBlocks.Contracts.csproj" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+</Project>

@@ -1,0 +1,117 @@
+services:
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.5.0
+    container_name: bankmore-zookeeper
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    ports:
+      - "2181:2181"
+    networks:
+      - bankmore-net
+
+  kafka:
+    image: confluentinc/cp-kafka:7.5.0
+    container_name: bankmore-kafka
+    depends_on:
+      - zookeeper
+    ports:
+      - "9092:9092"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: bankmore-zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+    networks:
+      - bankmore-net
+
+  kafka-ui:
+    image: provectuslabs/kafka-ui:latest
+    container_name: bankmore-kafka-ui
+    depends_on:
+      - kafka
+    ports:
+      - "8085:8080"
+    environment:
+      KAFKA_CLUSTERS_0_NAME: bankmore
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:29092
+      KAFKA_CLUSTERS_0_ZOOKEEPER: bankmore-zookeeper:2181
+    networks:
+      - bankmore-net
+
+  account-api:
+    build:
+      context: .
+      dockerfile: src/Services/Account/BankMore.Account.Api/Dockerfile
+    container_name: bankmore-account-api
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      ASPNETCORE_URLS: http://+:8080
+      ConnectionStrings__AccountDatabase: Data Source=/data/bankmore-account.db
+      Jwt__Issuer: BankMore
+      Jwt__Audience: BankMore.Clients
+      Jwt__SecretKey: BankMore.Super.Secret.Key.With.At.Least.32.Characters
+      Jwt__ExpirationMinutes: 60
+    volumes:
+      - account_data:/data
+    ports:
+      - "5001:8080"
+    depends_on:
+      - kafka
+    networks:
+      - bankmore-net
+
+  transfer-api:
+    build:
+      context: .
+      dockerfile: src/Services/Transfer/BankMore.Transfer.Api/Dockerfile
+    container_name: bankmore-transfer-api
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      ASPNETCORE_URLS: http://+:8080
+      ConnectionStrings__TransferDatabase: Data Source=/data/bankmore-transfer.db
+      Jwt__Issuer: BankMore
+      Jwt__Audience: BankMore.Clients
+      Jwt__SecretKey: BankMore.Super.Secret.Key.With.At.Least.32.Characters
+      Jwt__ExpirationMinutes: 60
+      Services__AccountApiBaseUrl: http://account-api:8080/
+      Kafka__BootstrapServers: kafka:29092
+    volumes:
+      - transfer_data:/data
+    ports:
+      - "5002:8080"
+    depends_on:
+      - account-api
+      - kafka
+    networks:
+      - bankmore-net
+
+  fee-worker:
+    build:
+      context: .
+      dockerfile: src/Services/Fee/BankMore.Fee.Worker/Dockerfile
+    container_name: bankmore-fee-worker
+    environment:
+      DOTNET_ENVIRONMENT: Development
+      ConnectionStrings__FeeDatabase: Data Source=/data/bankmore-fee.db
+      Kafka__BootstrapServers: kafka:29092
+      Kafka__GroupId: bankmore-fee-worker
+      Fee__Amount: 5.00
+    volumes:
+      - fee_data:/data
+    depends_on:
+      - kafka
+      - transfer-api
+    networks:
+      - bankmore-net
+
+volumes:
+  account_data:
+  transfer_data:
+  fee_data:
+
+networks:
+  bankmore-net:
+    driver: bridge

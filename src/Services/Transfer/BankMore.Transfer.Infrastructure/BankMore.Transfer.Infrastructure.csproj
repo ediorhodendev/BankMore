@@ -1,0 +1,21 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+	<ItemGroup>
+		<ProjectReference Include="..\BankMore.Transfer.Application\BankMore.Transfer.Application.csproj" />
+		<ProjectReference Include="..\BankMore.Transfer.Domain\BankMore.Transfer.Domain.csproj" />
+		<ProjectReference Include="..\..\..\BuildingBlocks\BankMore.BuildingBlocks.Application\BankMore.BuildingBlocks.Application.csproj" />
+		<ProjectReference Include="..\..\..\BuildingBlocks\BankMore.BuildingBlocks.Contracts\BankMore.BuildingBlocks.Contracts.csproj" />
+		<ProjectReference Include="..\..\..\BuildingBlocks\BankMore.BuildingBlocks.Infrastructure\BankMore.BuildingBlocks.Infrastructure.csproj" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<FrameworkReference Include="Microsoft.AspNetCore.App" />
+	</ItemGroup>
+
+	<PropertyGroup>
+		<TargetFramework>net9.0</TargetFramework>
+		<ImplicitUsings>enable</ImplicitUsings>
+		<Nullable>enable</Nullable>
+	</PropertyGroup>
+
+</Project>

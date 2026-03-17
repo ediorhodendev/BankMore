@@ -1,0 +1,27 @@
+<Project Sdk="Microsoft.NET.Sdk.Worker">
+
+	<PropertyGroup>
+		<TargetFramework>net9.0</TargetFramework>
+		<Nullable>enable</Nullable>
+		<ImplicitUsings>enable</ImplicitUsings>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<ProjectReference Include="..\BankMore.Fee.Application\BankMore.Fee.Application.csproj" />
+		<ProjectReference Include="..\BankMore.Fee.Infrastructure\BankMore.Fee.Infrastructure.csproj" />
+		<ProjectReference Include="..\..\..\BuildingBlocks\BankMore.BuildingBlocks.Contracts\BankMore.BuildingBlocks.Contracts.csproj" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<Content Include="..\BankMore.Fee.Infrastructure\Persistence\Sql\fee.sql">
+			<Link>Persistence\Sql\fee.sql</Link>
+			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+			<CopyToPublishDirectory>Always</CopyToPublishDirectory>
+		</Content>
+	</ItemGroup>
+
+	<ItemGroup>
+	  <PackageReference Include="Microsoft.Extensions.Hosting" Version="9.0.0" />
+	</ItemGroup>
+
+</Project>
