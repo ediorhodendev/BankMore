@@ -348,3 +348,7 @@ Este projeto demonstra:
 * Consistência eventual
 * Boas práticas de backend
 
+  ## 📁 Pasta Collection-Postman
+  * BankMore.postman_collection.json
+  * BankMore.local.postman_environment.json
+
