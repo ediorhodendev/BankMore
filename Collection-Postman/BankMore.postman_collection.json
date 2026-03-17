@@ -1,0 +1,499 @@
+{
+  "info": {
+    "name": "BankMore - End to End",
+    "_postman_id": "7c9ce4a0-7f86-4d36-a65d-7b5ddf5a8e01",
+    "description": "Coleção Postman para testar Account API, Transfer API e cenários de erro do projeto BankMore.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrlAccount",
+      "value": "http://localhost:5001"
+    },
+    {
+      "key": "baseUrlTransfer",
+      "value": "http://localhost:5002"
+    },
+    {
+      "key": "tokenJoao",
+      "value": ""
+    },
+    {
+      "key": "tokenMaria",
+      "value": ""
+    },
+    {
+      "key": "contaJoao",
+      "value": ""
+    },
+    {
+      "key": "contaMaria",
+      "value": ""
+    }
+  ],
+  "item": [
+    {
+      "name": "01 - Criar conta João",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrlAccount}}/api/accounts"
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"name\": \"João Silva\",\n  \"cpf\": \"52998224725\",\n  \"password\": \"123456\"\n}"
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Status 201 ou 400 se já existir', function () { pm.expect([201,400]).to.include(pm.response.code); });",
+              "if (pm.response.code === 201) { var data = pm.response.json(); if (data.accountNumber) pm.collectionVariables.set('contaJoao', data.accountNumber); }"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "02 - Criar conta Maria",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrlAccount}}/api/accounts"
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"name\": \"Maria Souza\",\n  \"cpf\": \"39053344705\",\n  \"password\": \"654321\"\n}"
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Status 201 ou 400 se já existir', function () { pm.expect([201,400]).to.include(pm.response.code); });",
+              "if (pm.response.code === 201) { var data = pm.response.json(); if (data.accountNumber) pm.collectionVariables.set('contaMaria', data.accountNumber); }"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "03 - Login João",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrlAccount}}/api/auth/login"
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"login\": \"52998224725\",\n  \"password\": \"123456\"\n}"
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Status 200', function () { pm.response.to.have.status(200); });",
+              "var data = pm.response.json();",
+              "if (data.token) pm.collectionVariables.set('tokenJoao', data.token);",
+              "if (data.accountNumber) pm.collectionVariables.set('contaJoao', data.accountNumber);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "04 - Login Maria",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrlAccount}}/api/auth/login"
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"login\": \"39053344705\",\n  \"password\": \"654321\"\n}"
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Status 200', function () { pm.response.to.have.status(200); });",
+              "var data = pm.response.json();",
+              "if (data.token) pm.collectionVariables.set('tokenMaria', data.token);",
+              "if (data.accountNumber) pm.collectionVariables.set('contaMaria', data.accountNumber);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "05 - Accounts me (João)",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{tokenJoao}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrlAccount}}/api/accounts/me"
+        }
+      }
+    },
+    {
+      "name": "06 - Saldo João",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{tokenJoao}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrlAccount}}/api/movements/balance"
+        }
+      }
+    },
+    {
+      "name": "07 - Crédito João 1000",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{tokenJoao}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrlAccount}}/api/movements"
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"requestId\": \"mov-joao-credito-001\",\n  \"accountNumber\": null,\n  \"amount\": 1000.0,\n  \"type\": \"C\"\n}"
+        }
+      }
+    },
+    {
+      "name": "08 - Débito João 150",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{tokenJoao}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrlAccount}}/api/movements"
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"requestId\": \"mov-joao-debito-001\",\n  \"accountNumber\": null,\n  \"amount\": 150.0,\n  \"type\": \"D\"\n}"
+        }
+      }
+    },
+    {
+      "name": "09 - Saldo João após crédito e débito",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{tokenJoao}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrlAccount}}/api/movements/balance"
+        }
+      }
+    },
+    {
+      "name": "10 - Saldo Maria inicial",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{tokenMaria}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrlAccount}}/api/movements/balance"
+        }
+      }
+    },
+    {
+      "name": "11 - Transferir João -> Maria 200",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{tokenJoao}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrlTransfer}}/api/transfers"
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"requestId\": \"transfer-001\",\n  \"destinationAccountNumber\": \"{{contaMaria}}\",\n  \"amount\": 200.00\n}"
+        }
+      }
+    },
+    {
+      "name": "12 - Saldo João após transferência",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{tokenJoao}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrlAccount}}/api/movements/balance"
+        }
+      }
+    },
+    {
+      "name": "13 - Saldo Maria após transferência",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{tokenMaria}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrlAccount}}/api/movements/balance"
+        }
+      }
+    },
+    {
+      "name": "14 - Repetir transferência (idempotência)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{tokenJoao}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrlTransfer}}/api/transfers"
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"requestId\": \"transfer-001\",\n  \"destinationAccountNumber\": \"{{contaMaria}}\",\n  \"amount\": 200.00\n}"
+        }
+      }
+    },
+    {
+      "name": "15 - Inativar Maria",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{tokenMaria}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"password\": \"654321\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrlAccount}}/api/accounts/deactivate"
+        }
+      }
+    },
+    {
+      "name": "16 - Erro - CPF inválido",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrlAccount}}/api/accounts"
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"name\": \"Teste Invalido\",\n  \"cpf\": \"11111111111\",\n  \"password\": \"123456\"\n}"
+        }
+      }
+    },
+    {
+      "name": "17 - Erro - senha errada",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrlAccount}}/api/auth/login"
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"login\": \"52998224725\",\n  \"password\": \"999999\"\n}"
+        }
+      }
+    },
+    {
+      "name": "18 - Erro - movimentação valor inválido",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{tokenJoao}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrlAccount}}/api/movements"
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"requestId\": \"mov-invalido-001\",\n  \"accountNumber\": null,\n  \"amount\": 0,\n  \"type\": \"C\"\n}"
+        }
+      }
+    },
+    {
+      "name": "19 - Erro - movimentação tipo inválido",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{tokenJoao}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrlAccount}}/api/movements"
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"requestId\": \"mov-invalido-002\",\n  \"accountNumber\": null,\n  \"amount\": 10,\n  \"type\": \"X\"\n}"
+        }
+      }
+    },
+    {
+      "name": "20 - Erro - transferência valor inválido",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{tokenJoao}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrlTransfer}}/api/transfers"
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"requestId\": \"transfer-invalida-001\",\n  \"destinationAccountNumber\": \"{{contaMaria}}\",\n  \"amount\": 0\n}"
+        }
+      }
+    },
+    {
+      "name": "21 - Erro - transferência conta inexistente",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{tokenJoao}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrlTransfer}}/api/transfers"
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"requestId\": \"transfer-invalida-002\",\n  \"destinationAccountNumber\": \"9999999999\",\n  \"amount\": 50\n}"
+        }
+      }
+    }
+  ]
+}
