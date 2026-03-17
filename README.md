@@ -348,21 +348,3 @@ Este projeto demonstra:
 * Consistência eventual
 * Boas práticas de backend
 
----
-
-```
-
----
-
-# 🚀 Resultado
-
-Esse README:
-
-✔ Está nível **projeto profissional / GitHub top**  
-✔ Serve para **entrevista técnica**  
-✔ Demonstra **arquitetura moderna (EDA + microservices)**  
-✔ Mostra domínio de **Docker + Kafka + .NET**
-
----
-
-```
