@@ -1,7 +1,6 @@
 using BankMore.Account.Api.Contracts.Requests;
 using BankMore.Account.Application.Features.CreateAccount;
 using BankMore.Account.Application.Features.DeactivateAccount;
-using BankMore.Account.Application.Features.GetAccountByNumber;
 using BankMore.Account.Application.Features.GetCurrentAccount;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
@@ -20,6 +19,12 @@ public sealed class AccountsController : ControllerBase
         _sender = sender;
     }
 
+    /// <summary>
+    /// Cadastra uma nova conta corrente.
+    /// </summary>
+    /// <remarks>
+    /// Valida o CPF informado e retorna os dados da conta criada.
+    /// </remarks>
     [HttpPost]
     [AllowAnonymous]
     [ProducesResponseType(StatusCodes.Status201Created)]
@@ -50,11 +55,14 @@ public sealed class AccountsController : ControllerBase
             result.Value);
     }
 
+    /// <summary>
+    /// Inativa a conta corrente autenticada.
+    /// </summary>
     [HttpPatch("deactivate")]
     [Authorize]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
     public async Task<IActionResult> Deactivate(
         [FromBody] DeactivateAccountRequest request,
         CancellationToken cancellationToken)
@@ -65,9 +73,6 @@ public sealed class AccountsController : ControllerBase
 
         if (result.IsFailure)
         {
-            if (result.Error.Code == "USER_UNAUTHORIZED")
-                return Unauthorized(new { type = result.Error.Code, message = result.Error.Message });
-
             return BadRequest(new
             {
                 type = result.Error.Code,
@@ -78,46 +83,20 @@ public sealed class AccountsController : ControllerBase
         return NoContent();
     }
 
+    /// <summary>
+    /// Retorna os dados da conta corrente autenticada.
+    /// </summary>
     [HttpGet("me")]
     [Authorize]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
     public async Task<IActionResult> Me(CancellationToken cancellationToken)
     {
         var result = await _sender.Send(new GetCurrentAccountQuery(), cancellationToken);
 
         if (result.IsFailure)
         {
-            if (result.Error.Code == "USER_UNAUTHORIZED")
-                return Unauthorized(new { type = result.Error.Code, message = result.Error.Message });
-
-            return BadRequest(new
-            {
-                type = result.Error.Code,
-                message = result.Error.Message
-            });
-        }
-
-        return Ok(result.Value);
-    }
-
-    [HttpGet("by-number/{accountNumber}")]
-    [Authorize]
-    [ProducesResponseType(StatusCodes.Status200OK)]
-    [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
-    public async Task<IActionResult> GetByNumber(
-        [FromRoute] string accountNumber,
-        CancellationToken cancellationToken)
-    {
-        var result = await _sender.Send(new GetAccountByNumberQuery(accountNumber), cancellationToken);
-
-        if (result.IsFailure)
-        {
-            if (result.Error.Code == "USER_UNAUTHORIZED")
-                return Unauthorized(new { type = result.Error.Code, message = result.Error.Message });
-
             return BadRequest(new
             {
                 type = result.Error.Code,

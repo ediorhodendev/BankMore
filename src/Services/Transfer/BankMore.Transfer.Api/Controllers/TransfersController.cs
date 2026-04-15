@@ -18,10 +18,13 @@ public sealed class TransfersController : ControllerBase
         _sender = sender;
     }
 
+    /// <summary>
+    /// Efetua transferência entre contas da mesma instituição.
+    /// </summary>
     [HttpPost]
-    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
     public async Task<IActionResult> Perform(
         [FromBody] PerformTransferRequest request,
         CancellationToken cancellationToken)
@@ -35,15 +38,6 @@ public sealed class TransfersController : ControllerBase
 
         if (result.IsFailure)
         {
-            if (result.Error.Code == "USER_UNAUTHORIZED")
-            {
-                return Unauthorized(new
-                {
-                    type = result.Error.Code,
-                    message = result.Error.Message
-                });
-            }
-
             return BadRequest(new
             {
                 type = result.Error.Code,
@@ -51,6 +45,6 @@ public sealed class TransfersController : ControllerBase
             });
         }
 
-        return Ok(result.Value);
+        return NoContent();
     }
 }

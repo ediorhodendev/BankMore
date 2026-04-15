@@ -17,6 +17,9 @@ public sealed class AuthController : ControllerBase
         _sender = sender;
     }
 
+    /// <summary>
+    /// Efetua login usando CPF ou número da conta.
+    /// </summary>
     [HttpPost("login")]
     [AllowAnonymous]
     [ProducesResponseType(StatusCodes.Status200OK)]

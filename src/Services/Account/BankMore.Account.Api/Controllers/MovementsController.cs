@@ -19,10 +19,16 @@ public sealed class MovementsController : ControllerBase
         _sender = sender;
     }
 
+    /// <summary>
+    /// Realiza uma movimentação bancária.
+    /// </summary>
+    /// <remarks>
+    /// Aceita crédito ou débito, conforme as regras do desafio.
+    /// </remarks>
     [HttpPost]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
     public async Task<IActionResult> Create(
         [FromBody] CreateMovementRequest request,
         CancellationToken cancellationToken)
@@ -30,6 +36,7 @@ public sealed class MovementsController : ControllerBase
         var command = new CreateMovementCommand(
             request.RequestId,
             request.AccountNumber,
+            null,
             request.Amount,
             request.Type);
 
@@ -37,9 +44,6 @@ public sealed class MovementsController : ControllerBase
 
         if (result.IsFailure)
         {
-            if (result.Error.Code == "USER_UNAUTHORIZED")
-                return Unauthorized(new { type = result.Error.Code, message = result.Error.Message });
-
             return BadRequest(new
             {
                 type = result.Error.Code,
@@ -50,10 +54,13 @@ public sealed class MovementsController : ControllerBase
         return NoContent();
     }
 
+    /// <summary>
+    /// Consulta o saldo da conta autenticada.
+    /// </summary>
     [HttpGet("balance")]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
     public async Task<IActionResult> GetBalance(CancellationToken cancellationToken)
     {
         var query = new GetBalanceQuery();
@@ -62,9 +69,6 @@ public sealed class MovementsController : ControllerBase
 
         if (result.IsFailure)
         {
-            if (result.Error.Code == "USER_UNAUTHORIZED")
-                return Unauthorized(new { type = result.Error.Code, message = result.Error.Message });
-
             return BadRequest(new
             {
                 type = result.Error.Code,

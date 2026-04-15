@@ -2,9 +2,7 @@ CREATE TABLE IF NOT EXISTS transfer_operation (
     id TEXT NOT NULL PRIMARY KEY,
     request_id TEXT NOT NULL UNIQUE,
     source_account_id TEXT NOT NULL,
-    source_account_number TEXT NOT NULL,
     destination_account_id TEXT NOT NULL,
-    destination_account_number TEXT NOT NULL,
     amount REAL NOT NULL,
     created_at_utc TEXT NOT NULL
 );
