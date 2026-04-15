@@ -62,7 +62,24 @@ public sealed class CreateMovementCommandHandler : ICommandHandler<CreateMovemen
 
         var targetAccount = currentAccount;
 
-        if (!string.IsNullOrWhiteSpace(request.AccountNumber))
+        if (request.TargetAccountId.HasValue && request.TargetAccountId.Value != Guid.Empty)
+        {
+            targetAccount = await _accountRepository.GetByIdAsync(
+                request.TargetAccountId.Value,
+                cancellationToken);
+
+            if (targetAccount is null)
+                return Result.Failure(AccountErrors.InvalidAccount);
+
+            if (!targetAccount.IsActive)
+                return Result.Failure(AccountErrors.InactiveAccount);
+
+            var isDifferentAccount = targetAccount.Id != currentAccount.Id;
+
+            if (isDifferentAccount && movementType != MovementType.Credit)
+                return Result.Failure(AccountErrors.InvalidType);
+        }
+        else if (!string.IsNullOrWhiteSpace(request.AccountNumber))
         {
             targetAccount = await _accountRepository.GetByAccountNumberAsync(
                 request.AccountNumber.Trim(),

@@ -1,3 +1,5 @@
+using System.Reflection;
+using System.Text;
 using BankMore.BuildingBlocks.Contracts.Authentication;
 using BankMore.Transfer.Api.Extensions;
 using BankMore.Transfer.Application.Features.PerformTransfer;
@@ -6,7 +8,6 @@ using MediatR;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
-using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -21,6 +22,14 @@ builder.Services.AddSwaggerGen(options =>
         Version = "v1",
         Description = "API de Transferência do desafio."
     });
+
+    var xmlFile = $"{Assembly.GetExecutingAssembly().GetName().Name}.xml";
+    var xmlPath = Path.Combine(AppContext.BaseDirectory, xmlFile);
+
+    if (File.Exists(xmlPath))
+    {
+        options.IncludeXmlComments(xmlPath, includeControllerXmlComments: true);
+    }
 
     var securityScheme = new OpenApiSecurityScheme
     {
@@ -63,6 +72,7 @@ builder.Services
     {
         options.RequireHttpsMetadata = false;
         options.SaveToken = true;
+
         options.TokenValidationParameters = new TokenValidationParameters
         {
             ValidateIssuer = true,
@@ -77,6 +87,30 @@ builder.Services
             ValidateLifetime = true,
             ClockSkew = TimeSpan.Zero
         };
+
+        options.Events = new JwtBearerEvents
+        {
+            OnChallenge = async context =>
+            {
+                context.HandleResponse();
+
+                context.Response.StatusCode = StatusCodes.Status403Forbidden;
+                context.Response.ContentType = "application/json";
+
+                await context.Response.WriteAsync("""
+                {"type":"FORBIDDEN","message":"Token inválido ou expirado."}
+                """);
+            },
+            OnForbidden = async context =>
+            {
+                context.Response.StatusCode = StatusCodes.Status403Forbidden;
+                context.Response.ContentType = "application/json";
+
+                await context.Response.WriteAsync("""
+                {"type":"FORBIDDEN","message":"Acesso negado."}
+                """);
+            }
+        };
     });
 
 builder.Services.AddAuthorization();
@@ -85,11 +119,8 @@ var app = builder.Build();
 
 await app.InitializeTransferDatabaseAsync();
 
-if (app.Environment.IsDevelopment())
-{
-    app.UseSwagger();
-    app.UseSwaggerUI();
-}
+app.UseSwagger();
+app.UseSwaggerUI();
 
 app.UseAuthentication();
 app.UseAuthorization();

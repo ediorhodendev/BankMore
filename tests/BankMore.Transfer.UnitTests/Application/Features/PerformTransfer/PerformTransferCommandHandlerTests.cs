@@ -13,10 +13,12 @@ public sealed class PerformTransferCommandHandlerTests
     [Fact]
     public async Task Handle_Should_Transfer_With_Success()
     {
+        // Arrange
         var sourceAccountId = Guid.NewGuid();
         var destinationAccountId = Guid.NewGuid();
 
         var transferRepository = new Mock<ITransferRepository>();
+
         var idempotency = new Mock<ITransferIdempotencyService>();
         idempotency
             .Setup(x => x.ExistsAsync("transfer", "req-1", It.IsAny<CancellationToken>()))
@@ -32,17 +34,17 @@ public sealed class PerformTransferCommandHandlerTests
             .ReturnsAsync(new AccountLookupResult
             {
                 AccountId = sourceAccountId,
-                AccountNumber = "1111111111",
-                Name = "Origem"
+                Name = "Origem",
+                IsActive = true
             });
 
         accountApiClient
-            .Setup(x => x.GetAccountByNumberAsync("2222222222", "TOKEN", It.IsAny<CancellationToken>()))
+            .Setup(x => x.ResolveAccountByNumberAsync("2222222222", "TOKEN", It.IsAny<CancellationToken>()))
             .ReturnsAsync(new AccountLookupResult
             {
                 AccountId = destinationAccountId,
-                AccountNumber = "2222222222",
-                Name = "Destino"
+                Name = "Destino",
+                IsActive = true
             });
 
         accountApiClient
@@ -50,25 +52,29 @@ public sealed class PerformTransferCommandHandlerTests
             .ReturnsAsync(AccountMovementResult.Success());
 
         accountApiClient
-            .Setup(x => x.CreateCreditAsync("req-1-credit", "2222222222", 100m, "TOKEN", It.IsAny<CancellationToken>()))
+            .Setup(x => x.CreateCreditByAccountIdAsync("req-1-credit", destinationAccountId, 100m, "TOKEN", It.IsAny<CancellationToken>()))
             .ReturnsAsync(AccountMovementResult.Success());
 
         var publisher = new Mock<ITransferEventPublisher>();
 
-        var handler = new PerformTransferCommandHandler(
+        var handler = new Transfer.Application.Features.PerformTransfer.PerformTransferCommandHandler(
             transferRepository.Object,
             idempotency.Object,
             currentUser.Object,
             accountApiClient.Object,
             publisher.Object);
 
+        // Act
         var result = await handler.Handle(
             new PerformTransferCommand("req-1", "2222222222", 100m),
             CancellationToken.None);
 
+        // Assert
         result.IsSuccess.Should().BeTrue();
+        result.Value.RequestId.Should().Be("req-1");
         result.Value.SourceAccountId.Should().Be(sourceAccountId);
         result.Value.DestinationAccountId.Should().Be(destinationAccountId);
+        result.Value.Amount.Should().Be(100m);
 
         transferRepository.Verify(
             x => x.AddAsync(It.IsAny<TransferOperation>(), It.IsAny<CancellationToken>()),
@@ -92,12 +98,11 @@ public sealed class PerformTransferCommandHandlerTests
     [Fact]
     public async Task Handle_Should_Return_Existing_Transfer_When_Request_Is_Duplicate()
     {
+        // Arrange
         var existing = TransferOperation.Create(
             requestId: "req-1",
             sourceAccountId: Guid.NewGuid(),
-            sourceAccountNumber: "1111111111",
             destinationAccountId: Guid.NewGuid(),
-            destinationAccountNumber: "2222222222",
             amount: 100m);
 
         var transferRepository = new Mock<ITransferRepository>();
@@ -114,24 +119,45 @@ public sealed class PerformTransferCommandHandlerTests
         currentUser.Setup(x => x.AccountId).Returns(Guid.NewGuid());
         currentUser.Setup(x => x.BearerToken).Returns("TOKEN");
 
+        var accountApiClient = new Mock<IAccountApiClient>();
+        var publisher = new Mock<ITransferEventPublisher>();
+
         var handler = new PerformTransferCommandHandler(
             transferRepository.Object,
             idempotency.Object,
             currentUser.Object,
-            Mock.Of<IAccountApiClient>(),
-            Mock.Of<ITransferEventPublisher>());
+            accountApiClient.Object,
+            publisher.Object);
 
+        // Act
         var result = await handler.Handle(
             new PerformTransferCommand("req-1", "2222222222", 100m),
             CancellationToken.None);
 
+        // Assert
         result.IsSuccess.Should().BeTrue();
         result.Value.RequestId.Should().Be("req-1");
+        result.Value.SourceAccountId.Should().Be(existing.SourceAccountId);
+        result.Value.DestinationAccountId.Should().Be(existing.DestinationAccountId);
+        result.Value.Amount.Should().Be(100m);
+
+        accountApiClient.Verify(
+            x => x.CreateDebitAsync(It.IsAny<string>(), It.IsAny<decimal>(), It.IsAny<string>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+
+        accountApiClient.Verify(
+            x => x.CreateCreditByAccountIdAsync(It.IsAny<string>(), It.IsAny<Guid>(), It.IsAny<decimal>(), It.IsAny<string>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+
+        publisher.Verify(
+            x => x.PublishCompletedAsync(It.IsAny<Guid>(), It.IsAny<Guid>(), It.IsAny<Guid>(), It.IsAny<decimal>(), It.IsAny<DateTime>(), It.IsAny<CancellationToken>()),
+            Times.Never);
     }
 
     [Fact]
     public async Task Handle_Should_Fail_When_User_Is_Not_Authenticated()
     {
+        // Arrange
         var handler = new PerformTransferCommandHandler(
             Mock.Of<ITransferRepository>(),
             Mock.Of<ITransferIdempotencyService>(),
@@ -139,10 +165,12 @@ public sealed class PerformTransferCommandHandlerTests
             Mock.Of<IAccountApiClient>(),
             Mock.Of<ITransferEventPublisher>());
 
+        // Act
         var result = await handler.Handle(
             new PerformTransferCommand("req-1", "2222222222", 100m),
             CancellationToken.None);
 
+        // Assert
         result.IsFailure.Should().BeTrue();
         result.Error.Code.Should().Be("USER_UNAUTHORIZED");
     }
@@ -150,6 +178,7 @@ public sealed class PerformTransferCommandHandlerTests
     [Fact]
     public async Task Handle_Should_Fail_When_Bearer_Token_Is_Missing()
     {
+        // Arrange
         var currentUser = new Mock<ICurrentUserService>();
         currentUser.Setup(x => x.AccountId).Returns(Guid.NewGuid());
         currentUser.Setup(x => x.BearerToken).Returns((string?)null);
@@ -161,10 +190,12 @@ public sealed class PerformTransferCommandHandlerTests
             Mock.Of<IAccountApiClient>(),
             Mock.Of<ITransferEventPublisher>());
 
+        // Act
         var result = await handler.Handle(
             new PerformTransferCommand("req-1", "2222222222", 100m),
             CancellationToken.None);
 
+        // Assert
         result.IsFailure.Should().BeTrue();
         result.Error.Code.Should().Be("USER_UNAUTHORIZED");
     }
@@ -172,6 +203,7 @@ public sealed class PerformTransferCommandHandlerTests
     [Fact]
     public async Task Handle_Should_Fail_When_Value_Is_Invalid()
     {
+        // Arrange
         var currentUser = new Mock<ICurrentUserService>();
         currentUser.Setup(x => x.AccountId).Returns(Guid.NewGuid());
         currentUser.Setup(x => x.BearerToken).Returns("TOKEN");
@@ -183,10 +215,12 @@ public sealed class PerformTransferCommandHandlerTests
             Mock.Of<IAccountApiClient>(),
             Mock.Of<ITransferEventPublisher>());
 
+        // Act
         var result = await handler.Handle(
             new PerformTransferCommand("req-1", "2222222222", 0m),
             CancellationToken.None);
 
+        // Assert
         result.IsFailure.Should().BeTrue();
         result.Error.Code.Should().Be("INVALID_VALUE");
     }
@@ -194,6 +228,7 @@ public sealed class PerformTransferCommandHandlerTests
     [Fact]
     public async Task Handle_Should_Fail_When_Source_Account_Does_Not_Exist()
     {
+        // Arrange
         var idempotency = new Mock<ITransferIdempotencyService>();
         idempotency
             .Setup(x => x.ExistsAsync("transfer", "req-1", It.IsAny<CancellationToken>()))
@@ -215,17 +250,20 @@ public sealed class PerformTransferCommandHandlerTests
             accountApiClient.Object,
             Mock.Of<ITransferEventPublisher>());
 
+        // Act
         var result = await handler.Handle(
             new PerformTransferCommand("req-1", "2222222222", 100m),
             CancellationToken.None);
 
+        // Assert
         result.IsFailure.Should().BeTrue();
         result.Error.Code.Should().Be("INVALID_ACCOUNT");
     }
 
     [Fact]
-    public async Task Handle_Should_Fail_When_Destination_Account_Does_Not_Exist()
+    public async Task Handle_Should_Fail_When_Source_Account_Is_Inactive()
     {
+        // Arrange
         var sourceAccountId = Guid.NewGuid();
 
         var idempotency = new Mock<ITransferIdempotencyService>();
@@ -243,12 +281,54 @@ public sealed class PerformTransferCommandHandlerTests
             .ReturnsAsync(new AccountLookupResult
             {
                 AccountId = sourceAccountId,
-                AccountNumber = "1111111111",
-                Name = "Origem"
+                Name = "Origem",
+                IsActive = false
+            });
+
+        var handler = new PerformTransferCommandHandler(
+            Mock.Of<ITransferRepository>(),
+            idempotency.Object,
+            currentUser.Object,
+            accountApiClient.Object,
+            Mock.Of<ITransferEventPublisher>());
+
+        // Act
+        var result = await handler.Handle(
+            new PerformTransferCommand("req-1", "2222222222", 100m),
+            CancellationToken.None);
+
+        // Assert
+        result.IsFailure.Should().BeTrue();
+        result.Error.Code.Should().Be("INACTIVE_ACCOUNT");
+    }
+
+    [Fact]
+    public async Task Handle_Should_Fail_When_Destination_Account_Does_Not_Exist()
+    {
+        // Arrange
+        var sourceAccountId = Guid.NewGuid();
+
+        var idempotency = new Mock<ITransferIdempotencyService>();
+        idempotency
+            .Setup(x => x.ExistsAsync("transfer", "req-1", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(false);
+
+        var currentUser = new Mock<ICurrentUserService>();
+        currentUser.Setup(x => x.AccountId).Returns(sourceAccountId);
+        currentUser.Setup(x => x.BearerToken).Returns("TOKEN");
+
+        var accountApiClient = new Mock<IAccountApiClient>();
+        accountApiClient
+            .Setup(x => x.GetCurrentAccountAsync("TOKEN", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AccountLookupResult
+            {
+                AccountId = sourceAccountId,
+                Name = "Origem",
+                IsActive = true
             });
 
         accountApiClient
-            .Setup(x => x.GetAccountByNumberAsync("2222222222", "TOKEN", It.IsAny<CancellationToken>()))
+            .Setup(x => x.ResolveAccountByNumberAsync("2222222222", "TOKEN", It.IsAny<CancellationToken>()))
             .ReturnsAsync((AccountLookupResult?)null);
 
         var handler = new PerformTransferCommandHandler(
@@ -258,17 +338,122 @@ public sealed class PerformTransferCommandHandlerTests
             accountApiClient.Object,
             Mock.Of<ITransferEventPublisher>());
 
+        // Act
         var result = await handler.Handle(
             new PerformTransferCommand("req-1", "2222222222", 100m),
             CancellationToken.None);
 
+        // Assert
         result.IsFailure.Should().BeTrue();
         result.Error.Code.Should().Be("INVALID_ACCOUNT");
     }
 
     [Fact]
+    public async Task Handle_Should_Fail_When_Destination_Account_Is_Inactive()
+    {
+        // Arrange
+        var sourceAccountId = Guid.NewGuid();
+
+        var idempotency = new Mock<ITransferIdempotencyService>();
+        idempotency
+            .Setup(x => x.ExistsAsync("transfer", "req-1", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(false);
+
+        var currentUser = new Mock<ICurrentUserService>();
+        currentUser.Setup(x => x.AccountId).Returns(sourceAccountId);
+        currentUser.Setup(x => x.BearerToken).Returns("TOKEN");
+
+        var accountApiClient = new Mock<IAccountApiClient>();
+        accountApiClient
+            .Setup(x => x.GetCurrentAccountAsync("TOKEN", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AccountLookupResult
+            {
+                AccountId = sourceAccountId,
+                Name = "Origem",
+                IsActive = true
+            });
+
+        accountApiClient
+            .Setup(x => x.ResolveAccountByNumberAsync("2222222222", "TOKEN", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AccountLookupResult
+            {
+                AccountId = Guid.NewGuid(),
+                Name = "Destino",
+                IsActive = false
+            });
+
+        var handler = new PerformTransferCommandHandler(
+            Mock.Of<ITransferRepository>(),
+            idempotency.Object,
+            currentUser.Object,
+            accountApiClient.Object,
+            Mock.Of<ITransferEventPublisher>());
+
+        // Act
+        var result = await handler.Handle(
+            new PerformTransferCommand("req-1", "2222222222", 100m),
+            CancellationToken.None);
+
+        // Assert
+        result.IsFailure.Should().BeTrue();
+        result.Error.Code.Should().Be("INACTIVE_ACCOUNT");
+    }
+
+    [Fact]
+    public async Task Handle_Should_Fail_When_Source_And_Destination_Are_The_Same()
+    {
+        // Arrange
+        var sourceAccountId = Guid.NewGuid();
+
+        var idempotency = new Mock<ITransferIdempotencyService>();
+        idempotency
+            .Setup(x => x.ExistsAsync("transfer", "req-1", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(false);
+
+        var currentUser = new Mock<ICurrentUserService>();
+        currentUser.Setup(x => x.AccountId).Returns(sourceAccountId);
+        currentUser.Setup(x => x.BearerToken).Returns("TOKEN");
+
+        var accountApiClient = new Mock<IAccountApiClient>();
+        accountApiClient
+            .Setup(x => x.GetCurrentAccountAsync("TOKEN", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AccountLookupResult
+            {
+                AccountId = sourceAccountId,
+                Name = "Origem",
+                IsActive = true
+            });
+
+        accountApiClient
+            .Setup(x => x.ResolveAccountByNumberAsync("2222222222", "TOKEN", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AccountLookupResult
+            {
+                AccountId = sourceAccountId,
+                Name = "Destino",
+                IsActive = true
+            });
+
+        var handler = new PerformTransferCommandHandler(
+            Mock.Of<ITransferRepository>(),
+            idempotency.Object,
+            currentUser.Object,
+            accountApiClient.Object,
+            Mock.Of<ITransferEventPublisher>());
+
+        // Act
+        var result = await handler.Handle(
+            new PerformTransferCommand("req-1", "2222222222", 100m),
+            CancellationToken.None);
+
+        // Assert
+        result.IsFailure.Should().BeTrue();
+        result.Error.Code.Should().Be("INVALID_TRANSFER");
+    }
+
+    [Fact]
     public async Task Handle_Should_Fail_When_Debit_Fails()
     {
+        // Arrange
         var sourceAccountId = Guid.NewGuid();
         var destinationAccountId = Guid.NewGuid();
 
@@ -287,17 +472,17 @@ public sealed class PerformTransferCommandHandlerTests
             .ReturnsAsync(new AccountLookupResult
             {
                 AccountId = sourceAccountId,
-                AccountNumber = "1111111111",
-                Name = "Origem"
+                Name = "Origem",
+                IsActive = true
             });
 
         accountApiClient
-            .Setup(x => x.GetAccountByNumberAsync("2222222222", "TOKEN", It.IsAny<CancellationToken>()))
+            .Setup(x => x.ResolveAccountByNumberAsync("2222222222", "TOKEN", It.IsAny<CancellationToken>()))
             .ReturnsAsync(new AccountLookupResult
             {
                 AccountId = destinationAccountId,
-                AccountNumber = "2222222222",
-                Name = "Destino"
+                Name = "Destino",
+                IsActive = true
             });
 
         accountApiClient
@@ -311,10 +496,12 @@ public sealed class PerformTransferCommandHandlerTests
             accountApiClient.Object,
             Mock.Of<ITransferEventPublisher>());
 
+        // Act
         var result = await handler.Handle(
             new PerformTransferCommand("req-1", "2222222222", 100m),
             CancellationToken.None);
 
+        // Assert
         result.IsFailure.Should().BeTrue();
         result.Error.Code.Should().Be("TRANSFER_DEBIT_FAILED");
     }
@@ -322,6 +509,7 @@ public sealed class PerformTransferCommandHandlerTests
     [Fact]
     public async Task Handle_Should_Rollback_When_Credit_Fails()
     {
+        // Arrange
         var sourceAccountId = Guid.NewGuid();
         var destinationAccountId = Guid.NewGuid();
 
@@ -340,17 +528,17 @@ public sealed class PerformTransferCommandHandlerTests
             .ReturnsAsync(new AccountLookupResult
             {
                 AccountId = sourceAccountId,
-                AccountNumber = "1111111111",
-                Name = "Origem"
+                Name = "Origem",
+                IsActive = true
             });
 
         accountApiClient
-            .Setup(x => x.GetAccountByNumberAsync("2222222222", "TOKEN", It.IsAny<CancellationToken>()))
+            .Setup(x => x.ResolveAccountByNumberAsync("2222222222", "TOKEN", It.IsAny<CancellationToken>()))
             .ReturnsAsync(new AccountLookupResult
             {
                 AccountId = destinationAccountId,
-                AccountNumber = "2222222222",
-                Name = "Destino"
+                Name = "Destino",
+                IsActive = true
             });
 
         accountApiClient
@@ -358,7 +546,7 @@ public sealed class PerformTransferCommandHandlerTests
             .ReturnsAsync(AccountMovementResult.Success());
 
         accountApiClient
-            .Setup(x => x.CreateCreditAsync("req-1-credit", "2222222222", 100m, "TOKEN", It.IsAny<CancellationToken>()))
+            .Setup(x => x.CreateCreditByAccountIdAsync("req-1-credit", destinationAccountId, 100m, "TOKEN", It.IsAny<CancellationToken>()))
             .ReturnsAsync(AccountMovementResult.Failure("TRANSFER_CREDIT_FAILED", "Falha no crédito."));
 
         accountApiClient
@@ -372,10 +560,12 @@ public sealed class PerformTransferCommandHandlerTests
             accountApiClient.Object,
             Mock.Of<ITransferEventPublisher>());
 
+        // Act
         var result = await handler.Handle(
             new PerformTransferCommand("req-1", "2222222222", 100m),
             CancellationToken.None);
 
+        // Assert
         result.IsFailure.Should().BeTrue();
         result.Error.Code.Should().Be("TRANSFER_CREDIT_FAILED");
 

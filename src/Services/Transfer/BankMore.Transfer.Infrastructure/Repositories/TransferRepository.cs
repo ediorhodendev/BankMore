@@ -2,7 +2,6 @@ using BankMore.BuildingBlocks.Infrastructure.Persistence;
 using BankMore.Transfer.Application.Abstractions.Persistence;
 using BankMore.Transfer.Domain.Entities;
 using Dapper;
-using System.Globalization;
 
 namespace BankMore.Transfer.Infrastructure.Repositories;
 
@@ -23,9 +22,7 @@ public sealed class TransferRepository : ITransferRepository
                 id,
                 request_id,
                 source_account_id,
-                source_account_number,
                 destination_account_id,
-                destination_account_number,
                 amount,
                 created_at_utc
             )
@@ -34,9 +31,7 @@ public sealed class TransferRepository : ITransferRepository
                 @Id,
                 @RequestId,
                 @SourceAccountId,
-                @SourceAccountNumber,
                 @DestinationAccountId,
-                @DestinationAccountNumber,
                 @Amount,
                 @CreatedAtUtc
             );
@@ -51,9 +46,7 @@ public sealed class TransferRepository : ITransferRepository
                 Id = transfer.Id.ToString(),
                 transfer.RequestId,
                 SourceAccountId = transfer.SourceAccountId.ToString(),
-                transfer.SourceAccountNumber,
                 DestinationAccountId = transfer.DestinationAccountId.ToString(),
-                transfer.DestinationAccountNumber,
                 transfer.Amount,
                 CreatedAtUtc = transfer.CreatedAtUtc.ToString("O")
             },
@@ -64,14 +57,12 @@ public sealed class TransferRepository : ITransferRepository
     {
         const string sql = """
             SELECT
-                id                          AS Id,
-                request_id                  AS RequestId,
-                source_account_id           AS SourceAccountId,
-                source_account_number       AS SourceAccountNumber,
-                destination_account_id      AS DestinationAccountId,
-                destination_account_number  AS DestinationAccountNumber,
-                amount                      AS Amount,
-                created_at_utc              AS CreatedAtUtc
+                id                     AS Id,
+                request_id             AS RequestId,
+                source_account_id      AS SourceAccountId,
+                destination_account_id AS DestinationAccountId,
+                amount                 AS Amount,
+                created_at_utc         AS CreatedAtUtc
             FROM transfer_operation
             WHERE id = @Id
             LIMIT 1;
@@ -91,14 +82,12 @@ public sealed class TransferRepository : ITransferRepository
     {
         const string sql = """
             SELECT
-                id                          AS Id,
-                request_id                  AS RequestId,
-                source_account_id           AS SourceAccountId,
-                source_account_number       AS SourceAccountNumber,
-                destination_account_id      AS DestinationAccountId,
-                destination_account_number  AS DestinationAccountNumber,
-                amount                      AS Amount,
-                created_at_utc              AS CreatedAtUtc
+                id                     AS Id,
+                request_id             AS RequestId,
+                source_account_id      AS SourceAccountId,
+                destination_account_id AS DestinationAccountId,
+                amount                 AS Amount,
+                created_at_utc         AS CreatedAtUtc
             FROM transfer_operation
             WHERE request_id = @RequestId
             LIMIT 1;
@@ -116,26 +105,26 @@ public sealed class TransferRepository : ITransferRepository
 
     private static TransferOperation Map(TransferRow row)
     {
-        return TransferOperationHydrator.Hydrate(
-            id: Guid.Parse(row.Id),
-            requestId: row.RequestId,
-            sourceAccountId: Guid.Parse(row.SourceAccountId),
-            sourceAccountNumber: row.SourceAccountNumber,
-            destinationAccountId: Guid.Parse(row.DestinationAccountId),
-            destinationAccountNumber: row.DestinationAccountNumber,
-            amount: row.Amount,
-            createdAtUtc: DateTime.Parse(row.CreatedAtUtc, null, DateTimeStyles.RoundtripKind));
+        return typeof(TransferOperation)
+            .GetMethod("Create")!
+            .Invoke(null, new object?[]
+            {
+                row.RequestId,
+                Guid.Parse(row.SourceAccountId),
+                Guid.Parse(row.DestinationAccountId),
+                row.Amount,
+                DateTime.Parse(row.CreatedAtUtc, null, System.Globalization.DateTimeStyles.RoundtripKind)
+            }) as TransferOperation
+            ?? throw new InvalidOperationException("Não foi possível mapear a transferência.");
     }
 
     private sealed class TransferRow
     {
-        public string Id { get; set; } = string.Empty;
-        public string RequestId { get; set; } = string.Empty;
-        public string SourceAccountId { get; set; } = string.Empty;
-        public string SourceAccountNumber { get; set; } = string.Empty;
-        public string DestinationAccountId { get; set; } = string.Empty;
-        public string DestinationAccountNumber { get; set; } = string.Empty;
-        public decimal Amount { get; set; }
-        public string CreatedAtUtc { get; set; } = string.Empty;
+        public string Id { get; init; } = string.Empty;
+        public string RequestId { get; init; } = string.Empty;
+        public string SourceAccountId { get; init; } = string.Empty;
+        public string DestinationAccountId { get; init; } = string.Empty;
+        public decimal Amount { get; init; }
+        public string CreatedAtUtc { get; init; } = string.Empty;
     }
 }

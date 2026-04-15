@@ -1,6 +1,6 @@
-using BankMore.Transfer.Application.Abstractions.Services;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
+using BankMore.Transfer.Application.Abstractions.Services;
 
 namespace BankMore.Transfer.Infrastructure.Services;
 
@@ -25,7 +25,7 @@ public sealed class AccountApiClient : IAccountApiClient
         if (!response.IsSuccessStatusCode)
             return null;
 
-        var payload = await response.Content.ReadFromJsonAsync<AccountSummaryResponse>(cancellationToken: cancellationToken);
+        var payload = await response.Content.ReadFromJsonAsync<CurrentAccountPayload>(cancellationToken: cancellationToken);
 
         if (payload is null)
             return null;
@@ -33,20 +33,19 @@ public sealed class AccountApiClient : IAccountApiClient
         return new AccountLookupResult
         {
             AccountId = payload.AccountId,
-            AccountNumber = payload.AccountNumber,
             Name = payload.Name,
-            Balance = 0
+            IsActive = payload.IsActive
         };
     }
 
-    public async Task<AccountLookupResult?> GetAccountByNumberAsync(
+    public async Task<AccountLookupResult?> ResolveAccountByNumberAsync(
         string accountNumber,
         string bearerToken,
         CancellationToken cancellationToken = default)
     {
         using var request = new HttpRequestMessage(
             HttpMethod.Get,
-            $"api/accounts/by-number/{Uri.EscapeDataString(accountNumber)}");
+            $"api/internal/accounts/resolve/{Uri.EscapeDataString(accountNumber)}");
 
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", bearerToken);
 
@@ -55,7 +54,7 @@ public sealed class AccountApiClient : IAccountApiClient
         if (!response.IsSuccessStatusCode)
             return null;
 
-        var payload = await response.Content.ReadFromJsonAsync<AccountSummaryResponse>(cancellationToken: cancellationToken);
+        var payload = await response.Content.ReadFromJsonAsync<ResolveAccountPayload>(cancellationToken: cancellationToken);
 
         if (payload is null)
             return null;
@@ -63,9 +62,8 @@ public sealed class AccountApiClient : IAccountApiClient
         return new AccountLookupResult
         {
             AccountId = payload.AccountId,
-            AccountNumber = payload.AccountNumber,
             Name = payload.Name,
-            Balance = 0
+            IsActive = payload.IsActive
         };
     }
 
@@ -75,29 +73,48 @@ public sealed class AccountApiClient : IAccountApiClient
         string bearerToken,
         CancellationToken cancellationToken = default)
     {
-        return await SendMovementAsync(
-            requestId: requestId,
-            accountNumber: null,
-            amount: amount,
-            type: "D",
-            bearerToken: bearerToken,
-            cancellationToken: cancellationToken);
+        using var request = new HttpRequestMessage(HttpMethod.Post, "api/movements");
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", bearerToken);
+        request.Content = JsonContent.Create(new
+        {
+            requestId,
+            amount,
+            type = "D"
+        });
+
+        using var response = await _httpClient.SendAsync(request, cancellationToken);
+
+        if (response.IsSuccessStatusCode)
+            return AccountMovementResult.Success();
+
+        var error = await TryReadErrorAsync(response, cancellationToken);
+        return AccountMovementResult.Failure(error.code, error.message);
     }
 
-    public async Task<AccountMovementResult> CreateCreditAsync(
+    public async Task<AccountMovementResult> CreateCreditByAccountIdAsync(
         string requestId,
-        string destinationAccountNumber,
+        Guid destinationAccountId,
         decimal amount,
         string bearerToken,
         CancellationToken cancellationToken = default)
     {
-        return await SendMovementAsync(
-            requestId: requestId,
-            accountNumber: destinationAccountNumber,
-            amount: amount,
-            type: "C",
-            bearerToken: bearerToken,
-            cancellationToken: cancellationToken);
+        using var request = new HttpRequestMessage(HttpMethod.Post, "api/internal/movements/credit");
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", bearerToken);
+        request.Content = JsonContent.Create(new
+        {
+            requestId,
+            targetAccountId = destinationAccountId,
+            amount,
+            type = "C"
+        });
+
+        using var response = await _httpClient.SendAsync(request, cancellationToken);
+
+        if (response.IsSuccessStatusCode)
+            return AccountMovementResult.Success();
+
+        var error = await TryReadErrorAsync(response, cancellationToken);
+        return AccountMovementResult.Failure(error.code, error.message);
     }
 
     public async Task<AccountMovementResult> RevertDebitWithCreditAsync(
@@ -106,56 +123,56 @@ public sealed class AccountApiClient : IAccountApiClient
         string bearerToken,
         CancellationToken cancellationToken = default)
     {
-        return await SendMovementAsync(
-            requestId: requestId,
-            accountNumber: null,
-            amount: amount,
-            type: "C",
-            bearerToken: bearerToken,
-            cancellationToken: cancellationToken);
-    }
-
-    private async Task<AccountMovementResult> SendMovementAsync(
-        string requestId,
-        string? accountNumber,
-        decimal amount,
-        string type,
-        string bearerToken,
-        CancellationToken cancellationToken)
-    {
         using var request = new HttpRequestMessage(HttpMethod.Post, "api/movements");
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", bearerToken);
         request.Content = JsonContent.Create(new
         {
             requestId,
-            accountNumber,
             amount,
-            type
+            type = "C"
         });
 
         using var response = await _httpClient.SendAsync(request, cancellationToken);
 
-        if (response.IsSuccessStatusCode || response.StatusCode == System.Net.HttpStatusCode.NoContent)
+        if (response.IsSuccessStatusCode)
             return AccountMovementResult.Success();
 
-        var error = await response.Content.ReadFromJsonAsync<ApiErrorResponse>(cancellationToken: cancellationToken);
-
-        return AccountMovementResult.Failure(
-            error?.Type ?? "ACCOUNT_API_ERROR",
-            error?.Message ?? "Falha ao processar movimentação na API de conta.");
+        var error = await TryReadErrorAsync(response, cancellationToken);
+        return AccountMovementResult.Failure(error.code, error.message);
     }
 
-    private sealed class AccountSummaryResponse
+    private static async Task<(string code, string message)> TryReadErrorAsync(HttpResponseMessage response, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var payload = await response.Content.ReadFromJsonAsync<ErrorPayload>(cancellationToken: cancellationToken);
+            if (payload is not null)
+                return (payload.Type ?? "ACCOUNT_API_ERROR", payload.Message ?? "Erro ao chamar a API de conta.");
+        }
+        catch
+        {
+        }
+
+        return ("ACCOUNT_API_ERROR", "Erro ao chamar a API de conta.");
+    }
+
+    private sealed class CurrentAccountPayload
     {
         public Guid AccountId { get; set; }
-        public string AccountNumber { get; set; } = string.Empty;
         public string Name { get; set; } = string.Empty;
         public bool IsActive { get; set; }
     }
 
-    private sealed class ApiErrorResponse
+    private sealed class ResolveAccountPayload
     {
-        public string Type { get; set; } = string.Empty;
-        public string Message { get; set; } = string.Empty;
+        public Guid AccountId { get; set; }
+        public string Name { get; set; } = string.Empty;
+        public bool IsActive { get; set; }
+    }
+
+    private sealed class ErrorPayload
+    {
+        public string? Type { get; set; }
+        public string? Message { get; set; }
     }
 }

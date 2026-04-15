@@ -6,7 +6,7 @@ public interface IAccountApiClient
         string bearerToken,
         CancellationToken cancellationToken = default);
 
-    Task<AccountLookupResult?> GetAccountByNumberAsync(
+    Task<AccountLookupResult?> ResolveAccountByNumberAsync(
         string accountNumber,
         string bearerToken,
         CancellationToken cancellationToken = default);
@@ -17,9 +17,9 @@ public interface IAccountApiClient
         string bearerToken,
         CancellationToken cancellationToken = default);
 
-    Task<AccountMovementResult> CreateCreditAsync(
+    Task<AccountMovementResult> CreateCreditByAccountIdAsync(
         string requestId,
-        string destinationAccountNumber,
+        Guid destinationAccountId,
         decimal amount,
         string bearerToken,
         CancellationToken cancellationToken = default);
@@ -34,20 +34,14 @@ public interface IAccountApiClient
 public sealed class AccountLookupResult
 {
     public Guid AccountId { get; init; }
-
-    public string AccountNumber { get; init; } = string.Empty;
-
     public string Name { get; init; } = string.Empty;
-
-    public decimal Balance { get; init; }
+    public bool IsActive { get; init; }
 }
 
 public sealed class AccountMovementResult
 {
     public bool IsSuccess { get; init; }
-
     public string? ErrorCode { get; init; }
-
     public string? ErrorMessage { get; init; }
 
     public static AccountMovementResult Success()

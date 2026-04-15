@@ -8,11 +8,7 @@ public sealed class TransferOperation : AggregateRoot
 
     public Guid SourceAccountId { get; private set; }
 
-    public string SourceAccountNumber { get; private set; } = string.Empty;
-
     public Guid DestinationAccountId { get; private set; }
-
-    public string DestinationAccountNumber { get; private set; } = string.Empty;
 
     public decimal Amount { get; private set; }
 
@@ -26,17 +22,13 @@ public sealed class TransferOperation : AggregateRoot
         Guid id,
         string requestId,
         Guid sourceAccountId,
-        string sourceAccountNumber,
         Guid destinationAccountId,
-        string destinationAccountNumber,
         decimal amount,
         DateTime createdAtUtc) : base(id)
     {
         RequestId = requestId;
         SourceAccountId = sourceAccountId;
-        SourceAccountNumber = sourceAccountNumber;
         DestinationAccountId = destinationAccountId;
-        DestinationAccountNumber = destinationAccountNumber;
         Amount = amount;
         CreatedAtUtc = createdAtUtc;
     }
@@ -44,9 +36,7 @@ public sealed class TransferOperation : AggregateRoot
     public static TransferOperation Create(
         string requestId,
         Guid sourceAccountId,
-        string sourceAccountNumber,
         Guid destinationAccountId,
-        string destinationAccountNumber,
         decimal amount,
         DateTime? createdAtUtc = null)
     {
@@ -59,12 +49,6 @@ public sealed class TransferOperation : AggregateRoot
         if (destinationAccountId == Guid.Empty)
             throw new DomainException("A conta de destino é obrigatória.");
 
-        if (string.IsNullOrWhiteSpace(sourceAccountNumber))
-            throw new DomainException("O número da conta de origem é obrigatório.");
-
-        if (string.IsNullOrWhiteSpace(destinationAccountNumber))
-            throw new DomainException("O número da conta de destino é obrigatório.");
-
         if (amount <= 0)
             throw new DomainException("O valor da transferência deve ser maior que zero.");
 
@@ -75,9 +59,7 @@ public sealed class TransferOperation : AggregateRoot
             Guid.NewGuid(),
             requestId.Trim(),
             sourceAccountId,
-            sourceAccountNumber.Trim(),
             destinationAccountId,
-            destinationAccountNumber.Trim(),
             amount,
             createdAtUtc ?? DateTime.UtcNow);
     }
